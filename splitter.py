@@ -1,6 +1,7 @@
 """Pure accounting and reconciliation. All amounts are integer milliunits."""
 
 import hashlib
+import re
 from dataclasses import dataclass, replace
 from datetime import date
 
@@ -58,14 +59,16 @@ class Transaction:
     deleted: bool = False
     split: bool = False
 
-
-def adjustment_memo(source_plan: str, source_id: str, role: str) -> str:
-    return f"YS1|src={source_plan}:{source_id}|role={role}"
-
+def memo_identity(memo: str | None) -> tuple[str, str, str] | None:
+    match = re.search(
+        r"(?:^| )\[splitter-for-ynab\|src=([\w-]+):([\w-]+)\|role=(owner|recipient)\]\Z",
+        memo or "",
+    )
+    return match.groups() if match else None
 
 def adjustment_import_id(source_plan: str, source_id: str, role: str) -> str:
-    memo = adjustment_memo(source_plan, source_id, role)
-    return "YS1:" + hashlib.sha256(memo.encode()).hexdigest()[:32]
+    identity = f"{source_plan}:{source_id}:{role}"
+    return "SFY:" + hashlib.sha256(identity.encode()).hexdigest()[:32]
 
 
 @dataclass(frozen=True)
@@ -79,14 +82,21 @@ class Adjustment:
     amount: int
     category_id: str | None
     payee_name: str | None = None
+    source_memo: str | None = None
 
     @property
     def identity(self) -> str:
-        return f"YS1|src={self.source_plan}:{self.source_id}|"
+        return f"splitter-for-ynab|src={self.source_plan}:{self.source_id}|"
 
     @property
     def memo(self) -> str:
-        return adjustment_memo(self.source_plan, self.source_id, self.role)
+        marker = (
+            f"[splitter-for-ynab|src={self.source_plan}:{self.source_id}"
+            f"|role={self.role}]"
+        )
+        if not self.source_memo:
+            return marker
+        return f"{self.source_memo[:500 - len(marker) - 1]} {marker}"
 
     @property
     def import_id(self) -> str:
@@ -196,7 +206,7 @@ def skip_reason(
         return "Outside processing date window"
     if tx.account_id == settlement_id:
         return "Settlement account transaction"
-    if (tx.import_id or "").startswith("YS1:") or (tx.memo or "").startswith("YS1|"):
+    if (tx.import_id or "").startswith("SFY:") or memo_identity(tx.memo):
         return "Generated adjustment"
     if (
         not account
@@ -241,6 +251,7 @@ def expected_adjustments(
             amount,
             category,
             tx.payee_name,
+            tx.memo,
         )
         for participant, role, amount, category in (
             (owner, "owner", -share, tx.category_id),
@@ -282,7 +293,8 @@ def reconcile(
             tx
             for tx in existing[adjustment.plan_id]
             if tx.import_id == adjustment.import_id
-            or (tx.memo or "").startswith(adjustment.identity)
+            or memo_identity(tx.memo)
+            == (adjustment.source_plan, adjustment.source_id, adjustment.role)
         ]
         if len(matches) > 1:
             raise Conflict(f"Ambiguous {adjustment.role} adjustments")
