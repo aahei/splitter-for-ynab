@@ -26,7 +26,6 @@ coverage.xml
 .env
 .env.*
 !.env.example
-/.github/workflows/sync.yml
 
 # Editor and OS files
 .DS_Store
