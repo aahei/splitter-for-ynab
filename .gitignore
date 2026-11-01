@@ -1,0 +1,35 @@
+# Local environments and Python build output
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+/build/
+/dist/
+/mise.toml
+
+# Local verification
+/tests/
+/config.live*.toml
+/INTEGRATION.md
+.live-test.lock
+.pytest_cache/
+.pytest-tmp/
+.ruff_cache/
+.coverage
+.coverage.*
+/htmlcov/
+coverage.xml
+
+# Personal configuration and secrets
+/config.local*.toml
+.env
+.env.*
+!.env.example
+/.github/workflows/sync.yml
+
+# Editor and OS files
+.DS_Store
+.idea/
+*.swp
+*.swo

@@ -1,0 +1,27 @@
+[project]
+name = "splitter-for-ynab"
+version = "1.0.0"
+description = "Share expenses between two YNAB plans"
+requires-python = ">=3.12"
+dependencies = ["ynab==4.4.1"]
+
+[project.optional-dependencies]
+dev = ["pytest==9.1.1", "ruff==0.17.2"]
+
+[tool.setuptools]
+py-modules = ["main", "splitter", "ynab_io"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+markers = ["live: opt-in tests that write to disposable YNAB plans"]
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"

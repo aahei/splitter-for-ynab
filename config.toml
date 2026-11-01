@@ -1,0 +1,20 @@
+[sync]
+lookback_days = 14
+
+[flags]
+half = "blue"
+full = "purple"
+complete = "green"
+
+[participants.a]
+plan_id = "REPLACE_WITH_A_PLAN_UUID"
+settlement_account_id = "REPLACE_WITH_A_SETTLEMENT_UUID"
+
+[participants.b]
+plan_id = "REPLACE_WITH_B_PLAN_UUID"
+settlement_account_id = "REPLACE_WITH_B_SETTLEMENT_UUID"
+
+# Map source category UUID to recipient category UUID.
+[categories.overrides.a_to_b]
+
+[categories.overrides.b_to_a]
