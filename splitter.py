@@ -50,7 +50,7 @@ class Transaction:
     approved: bool = False
     memo: str | None = None
     import_id: str | None = None
-    payee_id: str | None = None
+    payee_name: str | None = None
     transfer_account_id: str | None = None
     transfer_transaction_id: str | None = None
     matched_transaction_id: str | None = None
@@ -60,12 +60,12 @@ class Transaction:
 
 
 def adjustment_memo(source_plan: str, source_id: str, role: str) -> str:
-    return f"PS1|src={source_plan}:{source_id}|role={role}"
+    return f"YS1|src={source_plan}:{source_id}|role={role}"
 
 
 def adjustment_import_id(source_plan: str, source_id: str, role: str) -> str:
     memo = adjustment_memo(source_plan, source_id, role)
-    return "PS1:" + hashlib.sha256(memo.encode()).hexdigest()[:32]
+    return "YS1:" + hashlib.sha256(memo.encode()).hexdigest()[:32]
 
 
 @dataclass(frozen=True)
@@ -78,10 +78,11 @@ class Adjustment:
     date: str
     amount: int
     category_id: str | None
+    payee_name: str | None = None
 
     @property
     def identity(self) -> str:
-        return f"PS1|src={self.source_plan}:{self.source_id}|"
+        return f"YS1|src={self.source_plan}:{self.source_id}|"
 
     @property
     def memo(self) -> str:
@@ -97,6 +98,7 @@ class Adjustment:
             "date": self.date,
             "amount": self.amount,
             "category_id": self.category_id,
+            "payee_name": self.payee_name,
             "memo": self.memo,
             "import_id": self.import_id,
             "approved": self.role == "owner",
@@ -194,7 +196,7 @@ def skip_reason(
         return "Outside processing date window"
     if tx.account_id == settlement_id:
         return "Settlement account transaction"
-    if (tx.import_id or "").startswith("PS1:") or (tx.memo or "").startswith("PS1|"):
+    if (tx.import_id or "").startswith("YS1:") or (tx.memo or "").startswith("YS1|"):
         return "Generated adjustment"
     if (
         not account
@@ -238,6 +240,7 @@ def expected_adjustments(
             tx.date,
             amount,
             category,
+            tx.payee_name,
         )
         for participant, role, amount, category in (
             (owner, "owner", -share, tx.category_id),

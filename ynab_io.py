@@ -92,7 +92,7 @@ def transaction(value: ynab.TransactionDetail) -> Transaction:
         approved=value.approved,
         memo=value.memo,
         import_id=value.import_id,
-        payee_id=optional_id(value.payee_id),
+        payee_name=value.payee_name,
         transfer_account_id=optional_id(value.transfer_account_id),
         transfer_transaction_id=value.transfer_transaction_id,
         matched_transaction_id=value.matched_transaction_id,
