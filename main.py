@@ -171,8 +171,8 @@ def sync(
     *,
     dry_run: bool,
     today: date | None = None,
-    summary: dict[str, int | str] | None = None,
-) -> dict[str, int | str]:
+    summary: dict[str, int | bool] | None = None,
+) -> dict[str, int | bool]:
     config = validate_config(config)
     participants = {
         name: Participant.from_config(values)
@@ -202,7 +202,6 @@ def sync(
         currencies.append(currency_unit(currency.iso_code, currency.decimal_digits))
     if currencies[0] != currencies[1]:
         raise ValueError("Both plans must use the same currency and precision")
-    summary["currency"] = currencies[0][0]
     account_maps, category_maps = {}, {}
     for pid, participant in by_plan.items():
         client = clients[pid]
@@ -284,13 +283,13 @@ def sync(
             summary[counter] += 1
             print(f"{label} {name}/{txid}: {error}")
     if not dry_run and not (summary["conflicts"] or summary["api_errors"]):
-        summary.update(check_balances(config, clients))
+        summary["balances_match"] = check_balances(config, clients)
     return summary
 
 
-def check_balances(config: dict, clients: dict) -> dict:
-    balances = {}
-    for name, participant in config["participants"].items():
+def check_balances(config: dict, clients: dict) -> bool:
+    total = 0
+    for participant in config["participants"].values():
         pid = participant["plan_id"]
         client = clients[pid]
         response = client.read(
@@ -298,11 +297,8 @@ def check_balances(config: dict, clients: dict) -> dict:
             pid,
             participant["settlement_account_id"],
         )
-        balances[f"{name}_milliunits"] = response.data.account.balance
-    return {
-        **balances,
-        "difference_milliunits": sum(balances.values()),
-    }
+        total += response.data.account.balance
+    return total == 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -332,7 +328,7 @@ def main(argv: list[str] | None = None) -> int:
             bool(
                 summary["conflicts"]
                 or summary["api_errors"]
-                or summary.get("difference_milliunits", 0)
+                or not summary.get("balances_match", True)
             )
         )
     except (OSError, ValueError, KeyError, TypeError, APIError) as error:

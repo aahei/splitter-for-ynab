@@ -273,9 +273,7 @@ def verify(adjustment: Adjustment, tx: Transaction, *, fresh: bool = False) -> N
             "debt_transaction_type",
         )
     ):
-        raise Conflict(
-            f"Conflicting {adjustment.role} adjustment for {adjustment.source_id}"
-        )
+        raise Conflict(f"Conflicting {adjustment.role} adjustment")
     # Category and approval belong to the recipient after initial creation.
     if (fresh or adjustment.role == "owner") and any(
         getattr(tx, k) != expected[k] for k in ("category_id", "approved")
