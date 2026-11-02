@@ -171,8 +171,8 @@ def sync(
     *,
     dry_run: bool,
     today: date | None = None,
-    summary: dict[str, int] | None = None,
-) -> dict[str, int]:
+    summary: dict[str, int | str] | None = None,
+) -> dict[str, int | str]:
     config = validate_config(config)
     participants = {
         name: Participant.from_config(values)
@@ -194,25 +194,15 @@ def sync(
             if not tx.deleted and tx.flag_color in (flags.half, flags.full)
         )
         summary["pending"] = len(pending)
-    if not pending:
-        return summary
-
-    try:
-        currencies = []
-        for pid in by_plan:
-            client = clients[pid]
-            response = client.read(
-                ynab.PlansApi(client.api).get_plan_settings_by_id, pid
-            )
-            currency = response.data.settings.currency_format
-            currencies.append(currency_unit(currency.iso_code, currency.decimal_digits))
-        if currencies[0] != currencies[1]:
-            raise ValueError("Both plans must use the same currency and precision")
-    except ValueError as error:
-        for name, _, source in pending:
-            print(f"SKIP {name}/{source.id}: {error}")
-        summary["skipped"] += len(pending)
-        return summary
+    currencies = []
+    for pid in by_plan:
+        client = clients[pid]
+        response = client.read(ynab.PlansApi(client.api).get_plan_settings_by_id, pid)
+        currency = response.data.settings.currency_format
+        currencies.append(currency_unit(currency.iso_code, currency.decimal_digits))
+    if currencies[0] != currencies[1]:
+        raise ValueError("Both plans must use the same currency and precision")
+    summary["currency"] = currencies[0][0]
     account_maps, category_maps = {}, {}
     for pid, participant in by_plan.items():
         client = clients[pid]
@@ -231,6 +221,8 @@ def sync(
                 "Settlement account must be open, unlinked, on-budget cash/checking"
             )
         account_maps[pid] = accounts
+        if not pending:
+            continue
         response = client.read(ynab.CategoriesApi(client.api).get_categories, pid)
         category_maps[pid] = categories(
             ynab_io.categories(response.data.category_groups)
@@ -291,7 +283,26 @@ def sync(
                 label = "API ERROR"
             summary[counter] += 1
             print(f"{label} {name}/{txid}: {error}")
+    if not dry_run and not (summary["conflicts"] or summary["api_errors"]):
+        summary.update(check_balances(config, clients))
     return summary
+
+
+def check_balances(config: dict, clients: dict) -> dict:
+    balances = {}
+    for name, participant in config["participants"].items():
+        pid = participant["plan_id"]
+        client = clients[pid]
+        response = client.read(
+            ynab.AccountsApi(client.api).get_account_by_id,
+            pid,
+            participant["settlement_account_id"],
+        )
+        balances[f"{name}_milliunits"] = response.data.account.balance
+    return {
+        **balances,
+        "difference_milliunits": sum(balances.values()),
+    }
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -308,7 +319,6 @@ def main(argv: list[str] | None = None) -> int:
         with args.config.open("rb") as stream:
             config = tomllib.load(stream)
         config = validate_config(config)
-        since = date.today() - timedelta(days=config["sync"]["lookback_days"] - 1)
         for name, participant in config["participants"].items():
             token = os.environ.get(f"YNAB_TOKEN_{name.upper()}")
             if not token:
@@ -316,8 +326,15 @@ def main(argv: list[str] | None = None) -> int:
             if token not in pooled:
                 pooled[token] = Session(token, writes=not args.dry_run)
             clients[participant["plan_id"]] = pooled[token]
+        since = date.today() - timedelta(days=config["sync"]["lookback_days"] - 1)
         sync(config, clients, since, dry_run=args.dry_run, summary=summary)
-        status = int(bool(summary["conflicts"] or summary["api_errors"]))
+        status = int(
+            bool(
+                summary["conflicts"]
+                or summary["api_errors"]
+                or summary.get("difference_milliunits", 0)
+            )
+        )
     except (OSError, ValueError, KeyError, TypeError, APIError) as error:
         if isinstance(error, APIError):
             summary["api_errors"] += 1
@@ -325,12 +342,13 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         for client in pooled.values():
             client.close()
-        report = "\n".join(f"- {key}: {value}" for key, value in summary.items())
         print(json.dumps(summary, sort_keys=True))
         if path := os.environ.get("GITHUB_STEP_SUMMARY"):
+            report = "\n".join(f"- {key}: {value}" for key, value in summary.items())
+            mode_name = "dry run" if args.dry_run else "sync"
             with Path(path).open("a") as stream:
                 stream.write(
-                    f"## Splitter for YNAB {'dry run' if args.dry_run else 'sync'}\n\n"
+                    f"## Splitter for YNAB {mode_name}\n\n"
                     f"{report}\n\nExit status: {status}\n"
                 )
     return status
