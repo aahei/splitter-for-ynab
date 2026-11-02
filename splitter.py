@@ -59,12 +59,15 @@ class Transaction:
     deleted: bool = False
     split: bool = False
 
+
 def memo_identity(memo: str | None) -> tuple[str, str, str] | None:
     match = re.search(
-        r"(?:^| )\[splitter-for-ynab\|src=([\w-]+):([\w-]+)\|role=(owner|recipient)\]\Z",
+        r"(?:^| )\[splitter-for-ynab\|src=([\w-]+):([\w-]+)"
+        r"\|role=(owner|recipient)\]\Z",
         memo or "",
     )
     return match.groups() if match else None
+
 
 def adjustment_import_id(source_plan: str, source_id: str, role: str) -> str:
     identity = f"{source_plan}:{source_id}:{role}"
@@ -85,10 +88,6 @@ class Adjustment:
     source_memo: str | None = None
 
     @property
-    def identity(self) -> str:
-        return f"splitter-for-ynab|src={self.source_plan}:{self.source_id}|"
-
-    @property
     def memo(self) -> str:
         marker = (
             f"[splitter-for-ynab|src={self.source_plan}:{self.source_id}"
@@ -96,7 +95,7 @@ class Adjustment:
         )
         if not self.source_memo:
             return marker
-        return f"{self.source_memo[:500 - len(marker) - 1]} {marker}"
+        return f"{self.source_memo[: 500 - len(marker) - 1]} {marker}"
 
     @property
     def import_id(self) -> str:
