@@ -9,6 +9,10 @@ on:
         description: 'Discover and plan without writes'
         type: boolean
         default: true
+      lookback_days:
+        description: 'Lookback days override (blank uses config)'
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -32,8 +36,10 @@ jobs:
           YNAB_TOKEN_A: ${{ secrets.YNAB_TOKEN_A }}
           YNAB_TOKEN_B: ${{ secrets.YNAB_TOKEN_B }}
           DRY_RUN: ${{ inputs.dry_run }}
+          LOOKBACK_DAYS: ${{ inputs.lookback_days }}
         shell: bash
         run: |
           args=()
           if [[ "$DRY_RUN" == 'true' ]]; then args+=(--dry-run); fi
+          if [[ -n "$LOOKBACK_DAYS" ]]; then args+=(--lookback-days "$LOOKBACK_DAYS"); fi
           python main.py "${args[@]}"

@@ -307,6 +307,7 @@ def main(argv: list[str] | None = None) -> int:
         "--config", type=Path, default=Path(__file__).with_name("config.toml")
     )
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--lookback-days", type=int, help="Override sync.lookback_days")
     args = parser.parse_args(argv)
     clients, pooled = {}, {}
     summary = dict.fromkeys(COUNTERS, 0)
@@ -314,6 +315,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         with args.config.open("rb") as stream:
             config = tomllib.load(stream)
+        if args.lookback_days is not None:
+            config.setdefault("sync", {})["lookback_days"] = args.lookback_days
         config = validate_config(config)
         for name, participant in config["participants"].items():
             token = os.environ.get(f"YNAB_TOKEN_{name.upper()}")
