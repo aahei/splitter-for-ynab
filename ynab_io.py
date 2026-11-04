@@ -124,7 +124,7 @@ def categories(values: list[ynab.CategoryGroupWithCategories]) -> tuple[Category
             c.name,
             g.hidden or c.hidden,
             g.deleted or c.deleted,
-            g.internal or c.internal,
+            c.internal,
         )
         for g in values
         for c in g.categories
