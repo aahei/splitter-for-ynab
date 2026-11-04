@@ -274,11 +274,11 @@ def verify(adjustment: Adjustment, tx: Transaction, *, fresh: bool = False) -> N
         )
     ):
         raise Conflict(f"Conflicting {adjustment.role} adjustment")
-    # Category and approval belong to the recipient after initial creation.
-    if (fresh or adjustment.role == "owner") and any(
-        getattr(tx, k) != expected[k] for k in ("category_id", "approved")
-    ):
-        raise Conflict(f"Unexpected category/approval for {adjustment.role} adjustment")
+    # Recipient categories are suggestions; YNAB may categorize by payee on creation.
+    if adjustment.role == "owner" and tx.category_id != expected["category_id"]:
+        raise Conflict("Unexpected category for owner adjustment")
+    if (fresh or adjustment.role == "owner") and tx.approved != expected["approved"]:
+        raise Conflict(f"Unexpected approval for {adjustment.role} adjustment")
 
 
 def reconcile(
